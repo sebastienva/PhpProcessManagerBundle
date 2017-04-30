@@ -45,35 +45,52 @@ class HttpKernel implements BridgeInterface
 
         $contentLength = isset($headers['Content-Length']) ? (int) $headers['Content-Length'] : 0;
 
-        $request->on('data', function ($data) use ($request, $response, &$content, $contentLength) {
-            // Read data (may be empty for GET request)
-            $content.= $data;
-            // Handle request after receive
-            if (strlen($content) >= $contentLength) {
-                $symfonyRequest = static::mapRequest($request, $content);
-
-                try {
-                    // Execute
-                    $symfonyResponse = $this->application->handle($symfonyRequest);
-                } catch (\Throwable $t) {
-                    // Executed only in PHP 7, will not match in PHP 5.x
-                    $this->fatalError($response, $t);
-
-                    return;
-                } catch (\Exception $e) {
-                    // Executed only in PHP 5.x, will not be reached in PHP 7
-                    $this->fatalError($response, $e);
-
-                    return;
+        if ($contentLength > 0) {
+            $request->on('data', function ($data) use ($request, $response, &$content, $contentLength) {
+                // Read data
+                $content.= $data;
+                // Handle request after receive
+                if (strlen($content) >= $contentLength) {
+                    $this->onEnd($request, $response, $content);
                 }
+            });
+        } else {
+            // no data event when content is empty
+            $this->onEnd($request, $response, $content);
+        }
+    }
 
-                static::mapResponse($response, $symfonyResponse);
+    /**
+     * Handle end of the request
+     *
+     * @param ReactRequest  $request
+     * @param ReactResponse $response
+     * @param string        $content
+     */
+    public function onEnd(ReactRequest $request, ReactResponse $response, $content)
+    {
+        $symfonyRequest = static::mapRequest($request, $content);
 
-                if ($this->application instanceof SymfonyHttpKernel\TerminableInterface) {
-                    $this->application->terminate($symfonyRequest, $symfonyResponse);
-                }
-            }
-        });
+        try {
+            // Execute
+            $symfonyResponse = $this->application->handle($symfonyRequest);
+        } catch (\Throwable $t) {
+            // Executed only in PHP 7, will not match in PHP 5.x
+            $this->fatalError($response, $t);
+
+            return;
+        } catch (\Exception $e) {
+            // Executed only in PHP 5.x, will not be reached in PHP 7
+            $this->fatalError($response, $e);
+
+            return;
+        }
+
+        static::mapResponse($response, $symfonyResponse);
+
+        if ($this->application instanceof SymfonyHttpKernel\TerminableInterface) {
+            $this->application->terminate($symfonyRequest, $symfonyResponse);
+        }
     }
 
     /**
