@@ -33,6 +33,26 @@ class HttpKernel implements BridgeInterface
     }
 
     /**
+     * Return headers with the same format (content-type => Content-Type)
+     * @param Array $headers
+     *
+     * @return array
+     */
+    protected static function getNormalizedHeaders(Array $headers)
+    {
+        foreach ($headers as $name => $value) {
+            $newName = str_replace(' ', '-', ucwords(strtolower(str_replace('-', ' ', $name))));
+            unset($headers[$name]);
+            $headers[$newName] = $value;
+        }
+        if (isset($headers['Content-Type'])) {
+            $headers['Content-Type'] = explode(';', $headers['Content-Type'])[0];
+        }
+
+        return $headers;
+    }
+
+    /**
      * Handle a request
      *
      * @param ReactRequest  $request
@@ -41,7 +61,7 @@ class HttpKernel implements BridgeInterface
     public function onRequest(ReactRequest $request, ReactResponse $response)
     {
         $content = '';
-        $headers = $request->getHeaders();
+        $headers = self::getNormalizedHeaders($request->getHeaders());
 
         $contentLength = isset($headers['Content-Length']) ? (int) $headers['Content-Length'] : 0;
 
@@ -119,7 +139,7 @@ class HttpKernel implements BridgeInterface
     protected static function mapRequest(ReactRequest $reactRequest, $content)
     {
         $method  = $reactRequest->getMethod();
-        $headers = $reactRequest->getHeaders();
+        $headers = self::getNormalizedHeaders($reactRequest->getHeaders());
         $query   = $reactRequest->getQuery();
 
         $post = [];
